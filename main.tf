@@ -1,31 +1,77 @@
-provider "aws" {
-   region = "us-east-2"
-   access_key = "AKIATEEP4W7EOZD7PJG6"
-   secret_key = "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"
+provider "google" {
+  credentials = file("credentials.json")
+  project     = "playground-s-11-e19a8a3d"
+  region      = "us-central1"
+  zone        = "us-central1-c"
 }
-resource "aws_instance" "t-instance"{
- ami   = "ami-00399ec92321828f5"
- instance_type = "t2.micro"
- key_name = "new2"
- iam_instance_profile = "myrole"
- security_groups = [ "WebServer" ]
 
-tags = {
-    Name = "t-inst1122"
+resource "google_project_iam_custom_role" "my-instance-role1" {
+  role_id     = "InstanceRole"
+  title       = "My Instance Role"
+  description = "my custom iam role"
+  permissions = [
+    "storage.objects.create", 
+    "cloudkms.cryptoKeyVersions.useToEncrypt"
+  ]
+}
+
+resource "google_compute_instance" "t_instance" {
+  name         = "t-instance"
+  machine_type = "e2-medium"
+  zone         = "us-central1-a"
+
+  tags = ["gcp"]	
+
+  boot_disk {
+    initialize_params {
+      image = "ubuntu-os-cloud/ubuntu-2004-lts"
+    }
   }
 
-provisioner "remote-exec" {
-    inline = ["echo 'wait till the SSH is ready'"]
 
-connection {
-    type     = "ssh"
-    user     = "ubuntu"
-    private_key = file("/home/sauravk/Downloads/new2.pem")
-    host     = aws_instance.t-instance.public_ip
+  network_interface {
+    subnetwork= google_compute_subnetwork.test_subnetwork.self_link
+
+    access_config {
+      // Ephemeral IP
+    }
   }
+  metadata_startup_script = file("user_data.sh")
 }
 
-provisioner "local-exec" {
-  command = "ansible-playbook -u ubuntu -i ${aws_instance.t-instance.public_ip}, --private-key /home/sauravk/Downloads/new2.pem  /etc/ansible/aws.yml"
+resource "google_compute_network" "vpc_network" {
+   name = "vpc-network"
+   mtu  = 1500
+   auto_create_subnetworks = false
+  }
+  resource "google_compute_subnetwork" "test_subnetwork" {
+   name          = "demo-subnetwork"
+   ip_cidr_range = "10.2.0.0/16"
+   region        = "us-central1"
+   network       = google_compute_network.vpc_network.id
 }
+
+resource "google_storage_bucket" "mybucket" {
+  name          = "s1236bucket"
+  location      = "US"
+  project       = "playground-s-11-e19a8a3d"
+  storage_class = "standard"
+
+}
+
+resource "google_storage_bucket_object" "index_html" {
+  name   = "index_object"
+  source = "/home/sauravk/T-demo/index.html"
+  bucket = google_storage_bucket.mybucket.id
+}
+
+
+resource "google_compute_firewall" "modified" {
+  name    = "demo-firewall"
+  network = google_compute_network.vpc_network.id
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80", "8080", "22"]
+  }
 }
