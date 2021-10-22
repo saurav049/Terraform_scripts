@@ -1,0 +1,20 @@
+---
+ - hosts: localhost
+   vars_prompt:
+           - name: provider
+             prompt: Which provider do you want to create resource in?
+             private: no
+
+   tasks: 
+     - name: Run aws resource 
+       shell: terraform apply --auto-approve
+       args:
+               chdir: /home/sauravk/t-aws/aaws
+       when: provider == 'aws'
+
+     - name: Run gcp resource
+       shell: terraform apply --auto-approve
+       args:
+               chdir: /home/sauravk/T-demo/
+       when: provider == 'gcp'
+
